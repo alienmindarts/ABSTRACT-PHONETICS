@@ -663,7 +663,7 @@
             };
         }
 
-        function svgParaStringComEstilos(svgEl, estilos) {
+        function svgParaStringComEstilos(svgEl, estilos, legenda) {
             const clone = svgEl.cloneNode(true);
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
             style.textContent =
@@ -677,28 +677,46 @@
                 clone.setAttribute('rx', estilos.raioBorda);
                 clone.setAttribute('ry', estilos.raioBorda);
             }
+            if (legenda) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', LARGURA_SVG / 2);
+                text.setAttribute('y', ALTURA_SVG + 14);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', '#888');
+                text.setAttribute('font-size', '11');
+                text.setAttribute('font-family', 'system-ui, sans-serif');
+                text.textContent = legenda;
+                clone.appendChild(text);
+                clone.setAttribute('height', ALTURA_SVG + 22);
+                clone.setAttribute('viewBox', `0 0 ${LARGURA_SVG} ${ALTURA_SVG + 22}`);
+            }
             return new XMLSerializer().serializeToString(clone);
         }
 
-        function criarSpritesheet(svgs, callback) {
+        function criarSpritesheet(svgs, legendas, callback) {
             const estilos = obterEstilosComputados();
             const gap = 15;
             const raio = parseInt(estilos.raioBorda) || 0;
+            const mostrarLegendas = document.getElementById('toggleLegenda').checked && legendas.length > 0;
+            const legendaH = mostrarLegendas ? 22 : 0;
 
             const svgEls = [];
             const promises = [];
 
-            for (const svg of svgs) {
+            for (let i = 0; i < svgs.length; i++) {
+                const svg = svgs[i];
+                const leg = mostrarLegendas ? legendas[i] : null;
                 promises.push(new Promise((resolve) => {
-                    const str = svgParaStringComEstilos(svg, estilos);
+                    const str = svgParaStringComEstilos(svg, estilos, leg);
                     const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const img = new Image();
                     img.onload = () => {
+                        const svgH = ALTURA_SVG + (legendaH > 0 ? legendaH : 0);
                         svgEls.push({
                             img: img,
                             w: LARGURA_SVG + raio * 2,
-                            h: ALTURA_SVG + raio * 2
+                            h: svgH + raio * 2
                         });
                         URL.revokeObjectURL(url);
                         resolve();
@@ -711,7 +729,7 @@
                 const cols = Math.min(svgEls.length, 8);
                 const rows = Math.ceil(svgEls.length / cols);
                 const cellW = LARGURA_SVG + raio * 2;
-                const cellH = ALTURA_SVG + raio * 2;
+                const cellH = ALTURA_SVG + legendaH + raio * 2;
                 const totalW = cols * cellW + (cols - 1) * gap + gap * 2;
                 const totalH = rows * cellH + (rows - 1) * gap + gap * 2;
 
@@ -744,16 +762,23 @@
 
         document.getElementById('btnExportar').addEventListener('click', function() {
             const formato = document.getElementById('formatoExportacao').value;
-            const svgs = containerTexto.querySelectorAll('svg');
+            const wrappers = containerTexto.querySelectorAll('.bloco-wrapper');
+            const svgs = [];
+            const legendas = [];
+            wrappers.forEach(w => {
+                const s = w.querySelector('svg');
+                const l = w.querySelector('.legenda-bloco');
+                if (s) { svgs.push(s); legendas.push(l ? l.textContent : ''); }
+            });
 
             if (svgs.length === 0) return;
 
             const nomeBase = nomeBaseFicheiro();
 
             if (formato === 'svg') {
-                exportarSVG(svgs, nomeBase);
+                exportarSVG(svgs, legendas, nomeBase);
             } else {
-                criarSpritesheet(svgs, function(canvas) {
+                criarSpritesheet(svgs, legendas, function(canvas) {
                     const mime = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' }[formato];
                     const qualidade = (formato === 'jpeg' || formato === 'webp') ? 0.95 : undefined;
 
@@ -769,11 +794,13 @@
             }
         });
 
-        function exportarSVG(svgs, nomeBase) {
+        function exportarSVG(svgs, legendas, nomeBase) {
             const estilos = obterEstilosComputados();
+            const mostrarLegendas = document.getElementById('toggleLegenda').checked;
             let partes = [];
             svgs.forEach((svg, i) => {
-                partes.push(svgParaStringComEstilos(svg, estilos));
+                const leg = mostrarLegendas ? legendas[i] : null;
+                partes.push(svgParaStringComEstilos(svg, estilos, leg));
             });
 
             const downloadPartes = (idx) => {
