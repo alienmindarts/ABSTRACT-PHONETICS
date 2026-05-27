@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <title>Processador de Texto - Alfabeto Visual Major</title>
     <style>
+        :root {
+            --cor-fundo-celula: #121212;
+            --cor-linha-vogal: #2196F3;
+            --cor-consoante: #4CAF50;
+            --cor-grelha: #2a2a2a;
+        }
+
         body {
             font-family: system-ui, -apple-system, sans-serif;
             display: flex;
@@ -11,14 +18,59 @@
             align-items: center;
             background-color: #1e1e1e;
             color: #ffffff;
-            padding: 3rem;
+            padding: 2rem 3rem;
             margin: 0;
             min-height: 100vh;
         }
 
-        h1 { font-size: 1.5rem; font-weight: normal; margin-bottom: 2rem; color: #aaa; text-align: center; }
+        h1 { font-size: 1.5rem; font-weight: normal; margin-bottom: 1rem; color: #aaa; text-align: center; }
 
-        input {
+        #painelControlos {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            padding: 12px 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .controlo-cor {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .controlo-cor label {
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .controlo-cor input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #555;
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .controlo-cor input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .controlo-cor input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 4px;
+        }
+
+        input[type="text"] {
             width: 80%;
             max-width: 800px;
             padding: 15px 20px;
@@ -33,7 +85,7 @@
             transition: border-color 0.2s;
         }
 
-        input:focus { border-color: #2196F3; }
+        input[type="text"]:focus { border-color: #2196F3; }
 
         #containerTexto {
             display: flex;
@@ -49,20 +101,40 @@
         }
 
         svg {
-            background-color: #121212;
+            background-color: var(--cor-fundo-celula);
             border: 1px solid #333;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
             border-radius: 4px;
         }
 
-        .linha-grelha { stroke: #2a2a2a; stroke-width: 1; }
-        .bloco-consoante { fill: #4CAF50; }
-        .linha-vogal { stroke: #2196F3; stroke-width: 4; stroke-linecap: round; }
+        .linha-grelha { stroke: var(--cor-grelha); stroke-width: 1; }
+        .bloco-consoante { fill: var(--cor-consoante); }
+        .linha-vogal { stroke: var(--cor-linha-vogal); stroke-width: 4; stroke-linecap: round; }
     </style>
 </head>
 <body>
 
     <h1>Escreve texto natural ou números</h1>
+    
+    <div id="painelControlos">
+        <div class="controlo-cor">
+            <input type="color" id="corFundoCelula" value="#121212">
+            <label for="corFundoCelula">Fundo</label>
+        </div>
+        <div class="controlo-cor">
+            <input type="color" id="corGrelha" value="#2a2a2a">
+            <label for="corGrelha">Grelha</label>
+        </div>
+        <div class="controlo-cor">
+            <input type="color" id="corConsoante" value="#4CAF50">
+            <label for="corConsoante">Consoantes</label>
+        </div>
+        <div class="controlo-cor">
+            <input type="color" id="corLinhaVogal" value="#2196F3">
+            <label for="corLinhaVogal">Vogais</label>
+        </div>
+    </div>
+
     <input type="text" id="inputTexto" placeholder="Ex: Gato 123 Uva" autocomplete="off">
     
     <div id="containerTexto"></div>
@@ -270,6 +342,24 @@
         }
 
         inputTexto.addEventListener('input', atualizarTexto);
+
+        const raiz = document.documentElement;
+
+        document.getElementById('corFundoCelula').addEventListener('input', function() {
+            raiz.style.setProperty('--cor-fundo-celula', this.value);
+        });
+
+        document.getElementById('corGrelha').addEventListener('input', function() {
+            raiz.style.setProperty('--cor-grelha', this.value);
+        });
+
+        document.getElementById('corConsoante').addEventListener('input', function() {
+            raiz.style.setProperty('--cor-consoante', this.value);
+        });
+
+        document.getElementById('corLinhaVogal').addEventListener('input', function() {
+            raiz.style.setProperty('--cor-linha-vogal', this.value);
+        });
     </script>
 </body>
 </html>
