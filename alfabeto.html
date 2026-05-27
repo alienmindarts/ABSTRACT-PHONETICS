@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>Processador de Texto - Alfabeto Visual</title>
+    <title>Processador de Texto - Alfabeto Visual Major</title>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -16,7 +16,7 @@
             min-height: 100vh;
         }
 
-        h1 { font-size: 1.5rem; font-weight: normal; margin-bottom: 2rem; color: #aaa; }
+        h1 { font-size: 1.5rem; font-weight: normal; margin-bottom: 2rem; color: #aaa; text-align: center; }
 
         input {
             width: 80%;
@@ -24,7 +24,6 @@
             padding: 15px 20px;
             font-size: 1.5rem;
             margin-bottom: 40px;
-            text-transform: uppercase;
             background: #2d2d2d;
             border: 2px solid #444;
             color: #fff;
@@ -36,14 +35,17 @@
 
         input:focus { border-color: #2196F3; }
 
-        /* O novo contentor dinâmico para as palavras */
         #containerTexto {
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
             width: 100%;
             max-width: 1200px;
+        }
+
+        .espaco-palavra {
+            width: 30px;
         }
 
         svg {
@@ -60,8 +62,8 @@
 </head>
 <body>
 
-    <h1>Escreve frases separando os blocos com espaços</h1>
-    <input type="text" id="inputTexto" placeholder="Ex: AIA5O E3 U8A..." autocomplete="off">
+    <h1>Escreve texto natural ou números</h1>
+    <input type="text" id="inputTexto" placeholder="Ex: Gato 123 Uva" autocomplete="off">
     
     <div id="containerTexto"></div>
 
@@ -69,7 +71,6 @@
         const containerTexto = document.getElementById('containerTexto');
         const inputTexto = document.getElementById('inputTexto');
         
-        // Reduzi o tamanho da célula para que caibam várias grelhas no ecrã
         const TAMANHO_CELULA = 20; 
         const COLUNAS = 9;
         const LINHAS = 9;
@@ -78,6 +79,85 @@
         
         const posicaoColuna = { 'A': 0, 'E': 1, 'I': 2, 'O': 3, 'U': 4 };
 
+        // 1. MOTOR DE CONVERSÃO FONÉTICA
+        function converterTextoParaSistemaMajor(texto) {
+            let resultado = texto
+                .replace(/[çÇ]/g, '0')
+                .toUpperCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+
+            resultado = resultado.replaceAll('CH', '6');
+            resultado = resultado.replaceAll('LH', '5');
+            resultado = resultado.replaceAll('NH', '2');
+            resultado = resultado.replaceAll('RR', '4');
+            resultado = resultado.replaceAll('Y', 'I');
+            // A linha "resultado = resultado.replaceAll('U', 'O');" foi removida para manter a vogal U.
+
+            resultado = resultado.replaceAll('CE', '0E');
+            resultado = resultado.replaceAll('CI', '0I');
+            resultado = resultado.replaceAll('GE', '6E');
+            resultado = resultado.replaceAll('GI', '6I');
+        
+            const consoantes = {
+                'S': '0', 'Z': '0',
+                'T': '1', 'D': '1',
+                'N': '2',
+                'M': '3',
+                'R': '4',
+                'L': '5',
+                'J': '6', 'X': '6',
+                'K': '7', 'Q': '7', 'C': '7', 'G': '7',
+                'F': '8', 'V': '8',
+                'P': '9', 'B': '9'
+            };
+
+            let textoConvertido = '';
+            for(let i = 0; i < resultado.length; i++) {
+                let char = resultado[i];
+                if (consoantes[char] !== undefined) {
+                    textoConvertido += consoantes[char];
+                } else if (/[AEIOU]/.test(char)) {
+                    textoConvertido += char;
+                } else if (/[0-9]/.test(char)) { 
+                    textoConvertido += char;
+                }
+            }
+            return textoConvertido;
+        }
+
+        // 2. AGRUPADOR DE SÍLABAS/BLOCOS
+        function agruparEmBlocos(textoFonetico) {
+            const blocos = [];
+            let blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [] };
+            let lendoPosteriores = false;
+
+            for (let i = 0; i < textoFonetico.length; i++) {
+                const char = textoFonetico[i];
+
+                if (/[0-9]/.test(char)) {
+                    if (blocoAtual.consoante !== null) {
+                        blocos.push(blocoAtual);
+                        blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [] };
+                    }
+                    blocoAtual.consoante = parseInt(char, 10);
+                    lendoPosteriores = true;
+                } else if (/[AEIOU]/.test(char)) {
+                    if (!lendoPosteriores) {
+                        blocoAtual.vogaisAnteriores.push(char);
+                    } else {
+                        blocoAtual.vogaisPosteriores.push(char);
+                    }
+                }
+            }
+            
+            if (blocoAtual.consoante !== null) {
+                blocos.push(blocoAtual);
+            }
+            return blocos;
+        }
+
+        // --- LÓGICA DE DESENHO SVG ---
         function criarElementoSVG(tipo, atributos) {
             const el = document.createElementNS("http://www.w3.org/2000/svg", tipo);
             for (let chave in atributos) {
@@ -103,18 +183,6 @@
             }
         }
 
-        function analisarEntrada(texto) {
-            const inputLimpo = texto.trim().toUpperCase();
-            const regex = /^([AEIOU]*)([0-9])([AEIOU]*)$/;
-            const resultado = inputLimpo.match(regex);
-            if (!resultado) return null;
-            return {
-                vogaisAnteriores: resultado[1] ? resultado[1].split('') : [],
-                consoante: parseInt(resultado[2], 10),
-                vogaisPosteriores: resultado[3] ? resultado[3].split('') : []
-            };
-        }
-
         function processarVogais(listaVogais) {
             const alturasFinais = { 'A': 0, 'E': 0, 'I': 0, 'O': 0, 'U': 0 };
             listaVogais.forEach((vogal, index) => {
@@ -128,7 +196,6 @@
             return alturasFinais;
         }
 
-        // Função que gera UM bloco completo (uma sílaba)
         function criarBlocoSvg(dados) {
             const svg = criarElementoSVG('svg', {
                 width: LARGURA_SVG,
@@ -138,7 +205,6 @@
 
             desenharGrelhaBase(svg);
 
-            // Consoantes (Linha 5, y=4)
             for (let i = 0; i < dados.consoante; i++) {
                 svg.appendChild(criarElementoSVG('rect', {
                     x: i * TAMANHO_CELULA,
@@ -149,7 +215,6 @@
                 }));
             }
 
-            // Vogais Anteriores
             const alturasAnt = processarVogais(dados.vogaisAnteriores);
             const yOrigemAnt = 4 * TAMANHO_CELULA; 
             for (let vogal in alturasAnt) {
@@ -163,7 +228,6 @@
                 }
             }
 
-            // Vogais Posteriores
             const alturasPost = processarVogais(dados.vogaisPosteriores);
             const yOrigemPost = 5 * TAMANHO_CELULA; 
             for (let vogal in alturasPost) {
@@ -180,19 +244,26 @@
             return svg;
         }
 
+        // --- MOTOR PRINCIPAL ---
         function atualizarTexto() {
-            containerTexto.innerHTML = ''; // Limpa o ecrã
+            containerTexto.innerHTML = ''; 
             
-            // Divide o texto do input usando os espaços como separadores
-            const blocosTexto = inputTexto.value.split(/\s+/);
+            const palavras = inputTexto.value.split(/\s+/);
 
-            blocosTexto.forEach(texto => {
-                if (texto.length > 0) {
-                    const dados = analisarEntrada(texto);
-                    // Se a sílaba for válida, desenha; senão, ignora em silêncio
-                    if (dados) {
-                        const novoSvg = criarBlocoSvg(dados);
+            palavras.forEach((palavra, index) => {
+                if (palavra.length > 0) {
+                    const textoFonetico = converterTextoParaSistemaMajor(palavra);
+                    const blocos = agruparEmBlocos(textoFonetico);
+
+                    blocos.forEach(bloco => {
+                        const novoSvg = criarBlocoSvg(bloco);
                         containerTexto.appendChild(novoSvg);
+                    });
+
+                    if (index < palavras.length - 1) {
+                        const espaco = document.createElement('div');
+                        espaco.className = 'espaco-palavra';
+                        containerTexto.appendChild(espaco);
                     }
                 }
             });
