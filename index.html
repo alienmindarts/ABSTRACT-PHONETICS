@@ -10,6 +10,7 @@
             --cor-consoante: #4CAF50;
             --cor-grelha: #2a2a2a;
             --opacidade-rampa: 0.2;
+            --raio-borda: 0px;
         }
 
         body {
@@ -105,7 +106,7 @@
             background-color: var(--cor-fundo-celula);
             border: 1px solid #333;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            border-radius: 4px;
+            border-radius: var(--raio-borda);
         }
 
         .linha-grelha { stroke: var(--cor-grelha); stroke-width: 1; }
@@ -136,6 +137,9 @@
         .controlo-slider span {
             font-size: 0.65rem;
             color: #888;
+        }
+        .contorno-bordas-arredondamento {
+            border-radius: var(--raio-borda);
         }
 
         .controlo-toggle {
@@ -187,6 +191,18 @@
         .controlo-toggle input:checked + .toggle-switch::after {
             transform: translateX(16px);
         }
+
+        .bloco-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legenda-bloco {
+            font-size: 0.8rem;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -220,10 +236,20 @@
             <input type="range" id="sliderOpacidade" min="0" max="100" value="20">
             <span id="valorOpacidade">20%</span>
         </div>
+        <div class="controlo-slider">
+            <label for="sliderArredondamento">Arredondamento</label>
+            <input type="range" id="sliderArredondamento" min="0" max="50" value="0">
+            <span id="valorArredondamento">0px</span>
+        </div>
         <div class="controlo-toggle">
             <input type="checkbox" id="toggleInput" checked>
             <label for="toggleInput" class="toggle-switch"></label>
             <label for="toggleInput">Input</label>
+        </div>
+        <div class="controlo-toggle">
+            <input type="checkbox" id="toggleLegenda" checked>
+            <label for="toggleLegenda" class="toggle-switch"></label>
+            <label for="toggleLegenda">Legendas</label>
         </div>
     </div>
 
@@ -243,81 +269,121 @@
         
         const posicaoColuna = { 'A': 0, 'E': 1, 'I': 2, 'O': 3, 'U': 4 };
 
-        // 1. MOTOR DE CONVERSÃO FONÉTICA
-        function converterTextoParaSistemaMajor(texto) {
-            let resultado = texto
-                .replace(/[çÇ]/g, '0')
-                .toUpperCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '');
+        // 1. TOKENIZADOR (preserva texto original, deteta dígrafos)
+        function tokenizar(textoOriginal) {
+            let preprocessed = '';
+            let segments = [];
 
-            resultado = resultado.replaceAll('CH', '6');
-            resultado = resultado.replaceAll('LH', '5');
-            resultado = resultado.replaceAll('NH', '2');
-            resultado = resultado.replaceAll('RR', '4');
-            resultado = resultado.replaceAll('Y', 'I');
-            // A linha "resultado = resultado.replaceAll('U', 'O');" foi removida para manter a vogal U.
+            for (let i = 0; i < textoOriginal.length; i++) {
+                const ch = textoOriginal[i];
+                if (ch === '\u00E7' || ch === '\u00C7') {
+                    preprocessed += '0';
+                    segments.push(ch);
+                } else {
+                    const upper = ch.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    for (let j = 0; j < upper.length; j++) {
+                        segments.push(ch);
+                        preprocessed += upper[j];
+                    }
+                }
+            }
 
-            resultado = resultado.replaceAll('CE', '0E');
-            resultado = resultado.replaceAll('CI', '0I');
-            resultado = resultado.replaceAll('GE', '6E');
-            resultado = resultado.replaceAll('GI', '6I');
-        
-            const consoantes = {
-                'S': '0', 'Z': '0',
-                'T': '1', 'D': '1',
-                'N': '2',
-                'M': '3',
-                'R': '4',
-                'L': '5',
-                'J': '6', 'X': '6',
+            const tokens = [];
+            let i = 0;
+
+            const DIGRAFOS = { 'CH': '6', 'LH': '5', 'NH': '2', 'RR': '4' };
+            const SUAVES = { 'CE': '0E', 'CI': '0I', 'GE': '6E', 'GI': '6I' };
+            const CONSOANTES = {
+                'S': '0', 'Z': '0', 'T': '1', 'D': '1', 'N': '2', 'M': '3',
+                'R': '4', 'L': '5', 'J': '6', 'X': '6',
                 'K': '7', 'Q': '7', 'C': '7', 'G': '7',
-                'F': '8', 'V': '8',
-                'P': '9', 'B': '9'
+                'F': '8', 'V': '8', 'P': '9', 'B': '9'
             };
 
-            let textoConvertido = '';
-            for(let i = 0; i < resultado.length; i++) {
-                let char = resultado[i];
-                if (consoantes[char] !== undefined) {
-                    textoConvertido += consoantes[char];
-                } else if (/[AEIOU]/.test(char)) {
-                    textoConvertido += char;
-                } else if (/[0-9]/.test(char)) { 
-                    textoConvertido += char;
+            while (i < preprocessed.length) {
+                const c = preprocessed[i];
+
+                if (i + 1 < preprocessed.length) {
+                    const pair = preprocessed.substr(i, 2);
+                    if (DIGRAFOS[pair] !== undefined) {
+                        tokens.push({ orig: segments[i] + segments[i + 1], phonetic: DIGRAFOS[pair] });
+                        i += 2;
+                        continue;
+                    }
+                    if (SUAVES[pair] !== undefined) {
+                        tokens.push({ orig: segments[i] + segments[i + 1], phonetic: SUAVES[pair] });
+                        i += 2;
+                        continue;
+                    }
                 }
+
+                if (c === 'Y') {
+                    tokens.push({ orig: segments[i], phonetic: 'I' });
+                    i++;
+                    continue;
+                }
+
+                if (CONSOANTES[c] !== undefined) {
+                    tokens.push({ orig: segments[i], phonetic: CONSOANTES[c] });
+                    i++;
+                    continue;
+                }
+
+                if (/[AEIOU]/.test(c)) {
+                    tokens.push({ orig: segments[i], phonetic: c });
+                    i++;
+                    continue;
+                }
+
+                if (/[0-9]/.test(c)) {
+                    tokens.push({ orig: segments[i], phonetic: c });
+                    i++;
+                    continue;
+                }
+
+                i++;
             }
-            return textoConvertido;
+
+            return tokens;
         }
 
-        // 2. AGRUPADOR DE SÍLABAS/BLOCOS
-        function agruparEmBlocos(textoFonetico) {
+        // 2. AGRUPADOR DE SÍLABAS/BLOCOS (com textoOriginal)
+        function agruparEmBlocos(tokens) {
             const blocos = [];
-            let blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [] };
+            let blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [], textoOriginal: '' };
             let lendoPosteriores = false;
 
-            for (let i = 0; i < textoFonetico.length; i++) {
-                const char = textoFonetico[i];
+            function finalizarBloco() {
+                if (blocoAtual.consoante !== null) {
+                    blocos.push(blocoAtual);
+                    blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [], textoOriginal: '' };
+                }
+            }
 
-                if (/[0-9]/.test(char)) {
-                    if (blocoAtual.consoante !== null) {
-                        blocos.push(blocoAtual);
-                        blocoAtual = { vogaisAnteriores: [], consoante: null, vogaisPosteriores: [] };
-                    }
-                    blocoAtual.consoante = parseInt(char, 10);
-                    lendoPosteriores = true;
-                } else if (/[AEIOU]/.test(char)) {
-                    if (!lendoPosteriores) {
-                        blocoAtual.vogaisAnteriores.push(char);
-                    } else {
-                        blocoAtual.vogaisPosteriores.push(char);
+            for (const token of tokens) {
+                for (let j = 0; j < token.phonetic.length; j++) {
+                    const char = token.phonetic[j];
+                    const orig = (j === 0) ? token.orig : '';
+
+                    if (/[0-9]/.test(char)) {
+                        if (blocoAtual.consoante !== null) {
+                            finalizarBloco();
+                        }
+                        blocoAtual.consoante = parseInt(char, 10);
+                        blocoAtual.textoOriginal += orig;
+                        lendoPosteriores = true;
+                    } else if (/[AEIOU]/.test(char)) {
+                        if (!lendoPosteriores) {
+                            blocoAtual.vogaisAnteriores.push(char);
+                        } else {
+                            blocoAtual.vogaisPosteriores.push(char);
+                        }
+                        blocoAtual.textoOriginal += orig;
                     }
                 }
             }
-            
-            if (blocoAtual.consoante !== null) {
-                blocos.push(blocoAtual);
-            }
+
+            finalizarBloco();
             return blocos;
         }
 
@@ -420,7 +486,9 @@
                     y: 4 * TAMANHO_CELULA,
                     width: TAMANHO_CELULA,
                     height: TAMANHO_CELULA,
-                    class: 'bloco-consoante'
+                    class: 'bloco-consoante',
+                    rx: raioBorda,
+                    ry: raioBorda
                 }));
             }
 
@@ -460,12 +528,22 @@
 
             palavras.forEach((palavra, index) => {
                 if (palavra.length > 0) {
-                    const textoFonetico = converterTextoParaSistemaMajor(palavra);
-                    const blocos = agruparEmBlocos(textoFonetico);
+                    const tokens = tokenizar(palavra);
+                    const blocos = agruparEmBlocos(tokens);
 
                     blocos.forEach(bloco => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'bloco-wrapper';
+
                         const novoSvg = criarBlocoSvg(bloco, curvatura);
-                        containerTexto.appendChild(novoSvg);
+                        wrapper.appendChild(novoSvg);
+
+                        const legenda = document.createElement('div');
+                        legenda.className = 'legenda-bloco';
+                        legenda.textContent = bloco.textoOriginal;
+                        wrapper.appendChild(legenda);
+
+                        containerTexto.appendChild(wrapper);
                     });
 
                     if (index < palavras.length - 1) {
@@ -480,6 +558,7 @@
         inputTexto.addEventListener('input', atualizarTexto);
 
         const raiz = document.documentElement;
+        let raioBorda = 0;
 
         document.getElementById('corFundoCelula').addEventListener('input', function() {
             raiz.style.setProperty('--cor-fundo-celula', this.value);
@@ -505,8 +584,21 @@
             document.getElementById('valorOpacidade').textContent = this.value + '%';
         });
 
+        document.getElementById('sliderArredondamento').addEventListener('input', function() {
+            raioBorda = parseInt(this.value);
+            raiz.style.setProperty('--raio-borda', raioBorda + 'px');
+            document.getElementById('valorArredondamento').textContent = raioBorda + 'px';
+            atualizarTexto();
+        });
+
         document.getElementById('toggleInput').addEventListener('change', function() {
             inputTexto.style.display = this.checked ? '' : 'none';
+        });
+
+        document.getElementById('toggleLegenda').addEventListener('change', function() {
+            document.querySelectorAll('.legenda-bloco').forEach(el => {
+                el.style.display = this.checked ? '' : 'none';
+            });
         });
     </script>
 </body>
