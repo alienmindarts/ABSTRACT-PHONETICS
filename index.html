@@ -672,11 +672,19 @@
                 `.linha-vogal { stroke: ${estilos.corLinhaVogal}; stroke-width: 2; stroke-linecap: butt; }\n` +
                 `.rampa-vogal { fill: ${estilos.corLinhaVogal}; opacity: ${estilos.opacidadeRampa}; stroke: none; }`;
             clone.insertBefore(style, clone.firstChild);
-            clone.setAttribute('style', `background-color: ${estilos.corFundoCelula};`);
+
+            const fundo = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fundo.setAttribute('x', '0');
+            fundo.setAttribute('y', '0');
+            fundo.setAttribute('width', LARGURA_SVG);
+            fundo.setAttribute('height', ALTURA_SVG);
+            fundo.setAttribute('fill', estilos.corFundoCelula);
             if (estilos.raioBorda !== '0px') {
-                clone.setAttribute('rx', estilos.raioBorda);
-                clone.setAttribute('ry', estilos.raioBorda);
+                fundo.setAttribute('rx', estilos.raioBorda);
+                fundo.setAttribute('ry', estilos.raioBorda);
             }
+            clone.insertBefore(fundo, style.nextSibling);
+
             if (legenda) {
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', LARGURA_SVG / 2);
