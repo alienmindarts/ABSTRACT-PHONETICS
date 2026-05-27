@@ -110,6 +110,32 @@
         .linha-grelha { stroke: var(--cor-grelha); stroke-width: 1; }
         .bloco-consoante { fill: var(--cor-consoante); }
         .linha-vogal { stroke: var(--cor-linha-vogal); stroke-width: 4; stroke-linecap: round; }
+        .rampa-vogal { fill: var(--cor-linha-vogal); opacity: 0.2; stroke: none; }
+
+        .controlo-slider {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 120px;
+        }
+
+        .controlo-slider label {
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .controlo-slider input[type="range"] {
+            width: 100%;
+            accent-color: #2196F3;
+        }
+
+        .controlo-slider span {
+            font-size: 0.65rem;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -132,6 +158,11 @@
         <div class="controlo-cor">
             <input type="color" id="corLinhaVogal" value="#2196F3">
             <label for="corLinhaVogal">Vogais</label>
+        </div>
+        <div class="controlo-slider">
+            <label for="sliderCurvatura">Curvatura</label>
+            <input type="range" id="sliderCurvatura" min="0" max="100" value="0">
+            <span id="valorCurvatura">0%</span>
         </div>
     </div>
 
@@ -268,7 +299,7 @@
             return alturasFinais;
         }
 
-        function criarBlocoSvg(dados) {
+        function criarBlocoSvg(dados, curvatura) {
             const svg = criarElementoSVG('svg', {
                 width: LARGURA_SVG,
                 height: ALTURA_SVG,
@@ -276,6 +307,51 @@
             });
 
             desenharGrelhaBase(svg);
+
+            const alturasAnt = processarVogais(dados.vogaisAnteriores);
+            const yOrigemAnt = 4 * TAMANHO_CELULA;
+            const alturasPost = processarVogais(dados.vogaisPosteriores);
+            const yOrigemPost = 5 * TAMANHO_CELULA;
+
+            const fimConsoanteX = dados.consoante * TAMANHO_CELULA;
+
+            if (curvatura > 0.001) {
+                for (let vogal in alturasAnt) {
+                    if (alturasAnt[vogal] > 0) {
+                        const x = posicaoColuna[vogal] * TAMANHO_CELULA;
+                        const topY = yOrigemAnt - (alturasAnt[vogal] * TAMANHO_CELULA);
+                        const bx = fimConsoanteX;
+                        const by = 4 * TAMANHO_CELULA;
+
+                        const mx = (x + bx) / 2;
+                        const my = (topY + by) / 2;
+                        const coeff = curvatura * 0.5;
+                        const cx = mx + coeff * Math.abs(by - topY);
+                        const cy = my - coeff * Math.abs(bx - x);
+
+                        const d = `M ${x} ${topY} Q ${cx} ${cy}, ${bx} ${by} L ${x} ${by} Z`;
+                        svg.appendChild(criarElementoSVG('path', { d: d, class: 'rampa-vogal' }));
+                    }
+                }
+
+                for (let vogal in alturasPost) {
+                    if (alturasPost[vogal] > 0) {
+                        const x = posicaoColuna[vogal] * TAMANHO_CELULA;
+                        const bottomY = yOrigemPost + (alturasPost[vogal] * TAMANHO_CELULA);
+                        const bx = fimConsoanteX;
+                        const by = 5 * TAMANHO_CELULA;
+
+                        const mx = (x + bx) / 2;
+                        const my = (bottomY + by) / 2;
+                        const coeff = curvatura * 0.5;
+                        const cx = mx + coeff * Math.abs(by - bottomY);
+                        const cy = my + coeff * Math.abs(bx - x);
+
+                        const d = `M ${x} ${bottomY} Q ${cx} ${cy}, ${bx} ${by} L ${x} ${by} Z`;
+                        svg.appendChild(criarElementoSVG('path', { d: d, class: 'rampa-vogal' }));
+                    }
+                }
+            }
 
             for (let i = 0; i < dados.consoante; i++) {
                 svg.appendChild(criarElementoSVG('rect', {
@@ -287,8 +363,6 @@
                 }));
             }
 
-            const alturasAnt = processarVogais(dados.vogaisAnteriores);
-            const yOrigemAnt = 4 * TAMANHO_CELULA; 
             for (let vogal in alturasAnt) {
                 if (alturasAnt[vogal] > 0) {
                     const x = posicaoColuna[vogal] * TAMANHO_CELULA;
@@ -300,8 +374,6 @@
                 }
             }
 
-            const alturasPost = processarVogais(dados.vogaisPosteriores);
-            const yOrigemPost = 5 * TAMANHO_CELULA; 
             for (let vogal in alturasPost) {
                 if (alturasPost[vogal] > 0) {
                     const x = posicaoColuna[vogal] * TAMANHO_CELULA;
@@ -320,6 +392,9 @@
         function atualizarTexto() {
             containerTexto.innerHTML = ''; 
             
+            const curvatura = parseInt(document.getElementById('sliderCurvatura').value) / 100;
+            document.getElementById('valorCurvatura').textContent = Math.round(curvatura * 100) + '%';
+
             const palavras = inputTexto.value.split(/\s+/);
 
             palavras.forEach((palavra, index) => {
@@ -328,7 +403,7 @@
                     const blocos = agruparEmBlocos(textoFonetico);
 
                     blocos.forEach(bloco => {
-                        const novoSvg = criarBlocoSvg(bloco);
+                        const novoSvg = criarBlocoSvg(bloco, curvatura);
                         containerTexto.appendChild(novoSvg);
                     });
 
@@ -360,6 +435,8 @@
         document.getElementById('corLinhaVogal').addEventListener('input', function() {
             raiz.style.setProperty('--cor-linha-vogal', this.value);
         });
+
+        document.getElementById('sliderCurvatura').addEventListener('input', atualizarTexto);
     </script>
 </body>
 </html>
