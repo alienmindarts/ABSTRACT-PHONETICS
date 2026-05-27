@@ -313,21 +313,21 @@
             const alturasPost = processarVogais(dados.vogaisPosteriores);
             const yOrigemPost = 5 * TAMANHO_CELULA;
 
-            const fimConsoanteX = dados.consoante * TAMANHO_CELULA;
-
             if (curvatura > 0.001) {
                 for (let vogal in alturasAnt) {
                     if (alturasAnt[vogal] > 0) {
                         const x = posicaoColuna[vogal] * TAMANHO_CELULA;
                         const topY = yOrigemAnt - (alturasAnt[vogal] * TAMANHO_CELULA);
-                        const bx = fimConsoanteX;
+                        const bx = x + TAMANHO_CELULA;
                         const by = 4 * TAMANHO_CELULA;
 
                         const mx = (x + bx) / 2;
                         const my = (topY + by) / 2;
                         const coeff = curvatura * 0.5;
-                        const cx = mx + coeff * Math.abs(by - topY);
-                        const cy = my - coeff * Math.abs(bx - x);
+                        const distY = Math.abs(by - topY);
+                        const distX = TAMANHO_CELULA;
+                        const cx = mx + coeff * (distY * 0.5 + distX);
+                        const cy = my - coeff * distX * 0.8;
 
                         const d = `M ${x} ${topY} Q ${cx} ${cy}, ${bx} ${by} L ${x} ${by} Z`;
                         svg.appendChild(criarElementoSVG('path', { d: d, class: 'rampa-vogal' }));
@@ -338,14 +338,16 @@
                     if (alturasPost[vogal] > 0) {
                         const x = posicaoColuna[vogal] * TAMANHO_CELULA;
                         const bottomY = yOrigemPost + (alturasPost[vogal] * TAMANHO_CELULA);
-                        const bx = fimConsoanteX;
+                        const bx = x + TAMANHO_CELULA;
                         const by = 5 * TAMANHO_CELULA;
 
                         const mx = (x + bx) / 2;
                         const my = (bottomY + by) / 2;
                         const coeff = curvatura * 0.5;
-                        const cx = mx + coeff * Math.abs(by - bottomY);
-                        const cy = my + coeff * Math.abs(bx - x);
+                        const distY = Math.abs(by - bottomY);
+                        const distX = TAMANHO_CELULA;
+                        const cx = mx + coeff * (distY * 0.5 + distX);
+                        const cy = my + coeff * distX * 0.8;
 
                         const d = `M ${x} ${bottomY} Q ${cx} ${cy}, ${bx} ${by} L ${x} ${by} Z`;
                         svg.appendChild(criarElementoSVG('path', { d: d, class: 'rampa-vogal' }));
