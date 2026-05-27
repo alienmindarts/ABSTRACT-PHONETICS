@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>Gerador de Alfabeto Visual 9x9</title>
+    <title>Processador de Texto - Alfabeto Visual</title>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -13,14 +13,17 @@
             color: #ffffff;
             padding: 3rem;
             margin: 0;
+            min-height: 100vh;
         }
 
         h1 { font-size: 1.5rem; font-weight: normal; margin-bottom: 2rem; color: #aaa; }
 
         input {
-            padding: 12px 20px;
+            width: 80%;
+            max-width: 800px;
+            padding: 15px 20px;
             font-size: 1.5rem;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             text-transform: uppercase;
             background: #2d2d2d;
             border: 2px solid #444;
@@ -33,37 +36,48 @@
 
         input:focus { border-color: #2196F3; }
 
+        /* O novo contentor dinâmico para as palavras */
+        #containerTexto {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1200px;
+        }
+
         svg {
             background-color: #121212;
             border: 1px solid #333;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            border-radius: 4px;
         }
 
-        /* Estilos do SVG */
-        .linha-grelha { stroke: #333; stroke-width: 1; }
-        .bloco-consoante { fill: #4CAF50; } /* Verde para os blocos */
-        .linha-vogal { stroke: #2196F3; stroke-width: 6; stroke-linecap: round; } /* Azul para as vogais */
+        .linha-grelha { stroke: #2a2a2a; stroke-width: 1; }
+        .bloco-consoante { fill: #4CAF50; }
+        .linha-vogal { stroke: #2196F3; stroke-width: 4; stroke-linecap: round; }
     </style>
 </head>
 <body>
 
-    <h1>Visualizador de Sílabas</h1>
-    <input type="text" id="inputTexto" placeholder="Ex: AIA5O" autocomplete="off">
+    <h1>Escreve frases separando os blocos com espaços</h1>
+    <input type="text" id="inputTexto" placeholder="Ex: AIA5O E3 U8A..." autocomplete="off">
     
-    <svg id="canvasSistema" width="450" height="450"></svg>
+    <div id="containerTexto"></div>
 
     <script>
-        const svg = document.getElementById('canvasSistema');
+        const containerTexto = document.getElementById('containerTexto');
         const inputTexto = document.getElementById('inputTexto');
         
-        const TAMANHO_CELULA = 50;
+        // Reduzi o tamanho da célula para que caibam várias grelhas no ecrã
+        const TAMANHO_CELULA = 20; 
         const COLUNAS = 9;
         const LINHAS = 9;
+        const LARGURA_SVG = COLUNAS * TAMANHO_CELULA;
+        const ALTURA_SVG = LINHAS * TAMANHO_CELULA;
         
-        // Mapeamento das arestas (A=0, E=1, I=2, O=3, U=4)
         const posicaoColuna = { 'A': 0, 'E': 1, 'I': 2, 'O': 3, 'U': 4 };
 
-        // Função auxiliar para criar elementos SVG
         function criarElementoSVG(tipo, atributos) {
             const el = document.createElementNS("http://www.w3.org/2000/svg", tipo);
             for (let chave in atributos) {
@@ -72,34 +86,28 @@
             return el;
         }
 
-        // Desenha a grelha de fundo
-        function desenharGrelha() {
-            // Linhas verticais
+        function desenharGrelhaBase(svg) {
             for (let i = 0; i <= COLUNAS; i++) {
                 svg.appendChild(criarElementoSVG('line', {
                     x1: i * TAMANHO_CELULA, y1: 0,
-                    x2: i * TAMANHO_CELULA, y2: LINHAS * TAMANHO_CELULA,
+                    x2: i * TAMANHO_CELULA, y2: ALTURA_SVG,
                     class: 'linha-grelha'
                 }));
             }
-            // Linhas horizontais
             for (let i = 0; i <= LINHAS; i++) {
                 svg.appendChild(criarElementoSVG('line', {
                     x1: 0, y1: i * TAMANHO_CELULA,
-                    x2: COLUNAS * TAMANHO_CELULA, y2: i * TAMANHO_CELULA,
+                    x2: LARGURA_SVG, y2: i * TAMANHO_CELULA,
                     class: 'linha-grelha'
                 }));
             }
         }
 
-        // Interpretador Regex
         function analisarEntrada(texto) {
             const inputLimpo = texto.trim().toUpperCase();
             const regex = /^([AEIOU]*)([0-9])([AEIOU]*)$/;
             const resultado = inputLimpo.match(regex);
-
             if (!resultado) return null;
-
             return {
                 vogaisAnteriores: resultado[1] ? resultado[1].split('') : [],
                 consoante: parseInt(resultado[2], 10),
@@ -107,32 +115,30 @@
             };
         }
 
-        // Consolidador de Alturas
         function processarVogais(listaVogais) {
             const alturasFinais = { 'A': 0, 'E': 0, 'I': 0, 'O': 0, 'U': 0 };
             listaVogais.forEach((vogal, index) => {
                 const v = vogal.toUpperCase();
                 if (alturasFinais.hasOwnProperty(v)) {
-                    const alturaAtual = index + 1;
-                    if (alturaAtual > alturasFinais[v]) {
-                        alturasFinais[v] = alturaAtual;
+                    if ((index + 1) > alturasFinais[v]) {
+                        alturasFinais[v] = index + 1;
                     }
                 }
             });
             return alturasFinais;
         }
 
-        // Motor de Renderização Principal
-        function atualizarRenderizacao() {
-            // 1. Limpar canvas e redesenhar grelha
-            svg.innerHTML = '';
-            desenharGrelha();
+        // Função que gera UM bloco completo (uma sílaba)
+        function criarBlocoSvg(dados) {
+            const svg = criarElementoSVG('svg', {
+                width: LARGURA_SVG,
+                height: ALTURA_SVG,
+                viewBox: `0 0 ${LARGURA_SVG} ${ALTURA_SVG}`
+            });
 
-            // 2. Analisar input
-            const dados = analisarEntrada(inputTexto.value);
-            if (!dados) return; // Se o formato for inválido, fica só a grelha
+            desenharGrelhaBase(svg);
 
-            // 3. Desenhar Consoante (Linha 5, índice Y = 4)
+            // Consoantes (Linha 5, y=4)
             for (let i = 0; i < dados.consoante; i++) {
                 svg.appendChild(criarElementoSVG('rect', {
                     x: i * TAMANHO_CELULA,
@@ -143,44 +149,56 @@
                 }));
             }
 
-            // 4. Desenhar Vogais Anteriores (A subir a partir do topo da linha 5)
+            // Vogais Anteriores
             const alturasAnt = processarVogais(dados.vogaisAnteriores);
             const yOrigemAnt = 4 * TAMANHO_CELULA; 
-
             for (let vogal in alturasAnt) {
                 if (alturasAnt[vogal] > 0) {
                     const x = posicaoColuna[vogal] * TAMANHO_CELULA;
-                    const alturaPx = alturasAnt[vogal] * TAMANHO_CELULA;
                     svg.appendChild(criarElementoSVG('line', {
                         x1: x, y1: yOrigemAnt,
-                        x2: x, y2: yOrigemAnt - alturaPx,
+                        x2: x, y2: yOrigemAnt - (alturasAnt[vogal] * TAMANHO_CELULA),
                         class: 'linha-vogal'
                     }));
                 }
             }
 
-            // 5. Desenhar Vogais Posteriores (A descer a partir da base da linha 5)
+            // Vogais Posteriores
             const alturasPost = processarVogais(dados.vogaisPosteriores);
             const yOrigemPost = 5 * TAMANHO_CELULA; 
-
             for (let vogal in alturasPost) {
                 if (alturasPost[vogal] > 0) {
                     const x = posicaoColuna[vogal] * TAMANHO_CELULA;
-                    const alturaPx = alturasPost[vogal] * TAMANHO_CELULA;
                     svg.appendChild(criarElementoSVG('line', {
                         x1: x, y1: yOrigemPost,
-                        x2: x, y2: yOrigemPost + alturaPx,
+                        x2: x, y2: yOrigemPost + (alturasPost[vogal] * TAMANHO_CELULA),
                         class: 'linha-vogal'
                     }));
                 }
             }
+
+            return svg;
         }
 
-        // Event Listener para atualizar o desenho sempre que escreves
-        inputTexto.addEventListener('input', atualizarRenderizacao);
+        function atualizarTexto() {
+            containerTexto.innerHTML = ''; // Limpa o ecrã
+            
+            // Divide o texto do input usando os espaços como separadores
+            const blocosTexto = inputTexto.value.split(/\s+/);
 
-        // Desenhar a grelha inicial vazia
-        desenharGrelha();
+            blocosTexto.forEach(texto => {
+                if (texto.length > 0) {
+                    const dados = analisarEntrada(texto);
+                    // Se a sílaba for válida, desenha; senão, ignora em silêncio
+                    if (dados) {
+                        const novoSvg = criarBlocoSvg(dados);
+                        containerTexto.appendChild(novoSvg);
+                    }
+                }
+            });
+        }
+
+        inputTexto.addEventListener('input', atualizarTexto);
     </script>
 </body>
 </html>
