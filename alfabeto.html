@@ -9,6 +9,7 @@
             --cor-linha-vogal: #2196F3;
             --cor-consoante: #4CAF50;
             --cor-grelha: #2a2a2a;
+            --opacidade-rampa: 0.2;
         }
 
         body {
@@ -110,7 +111,7 @@
         .linha-grelha { stroke: var(--cor-grelha); stroke-width: 1; }
         .bloco-consoante { fill: var(--cor-consoante); }
         .linha-vogal { stroke: var(--cor-linha-vogal); stroke-width: 4; stroke-linecap: round; }
-        .rampa-vogal { fill: var(--cor-linha-vogal); opacity: 0.2; stroke: none; }
+        .rampa-vogal { fill: var(--cor-linha-vogal); opacity: var(--opacidade-rampa); stroke: none; }
 
         .controlo-slider {
             display: flex;
@@ -135,6 +136,56 @@
         .controlo-slider span {
             font-size: 0.65rem;
             color: #888;
+        }
+
+        .controlo-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 4px;
+        }
+
+        .controlo-toggle label {
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .controlo-toggle input[type="checkbox"] {
+            display: none;
+        }
+
+        .toggle-switch {
+            width: 36px;
+            height: 20px;
+            background: #555;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+
+        .controlo-toggle input:checked + .toggle-switch {
+            background: #2196F3;
+        }
+
+        .controlo-toggle input:checked + .toggle-switch::after {
+            transform: translateX(16px);
         }
     </style>
 </head>
@@ -161,8 +212,18 @@
         </div>
         <div class="controlo-slider">
             <label for="sliderCurvatura">Curvatura</label>
-            <input type="range" id="sliderCurvatura" min="0" max="100" value="0">
-            <span id="valorCurvatura">0%</span>
+            <input type="range" id="sliderCurvatura" min="0" max="100" value="50">
+            <span id="valorCurvatura">50%</span>
+        </div>
+        <div class="controlo-slider">
+            <label for="sliderOpacidade">Transparência</label>
+            <input type="range" id="sliderOpacidade" min="0" max="100" value="20">
+            <span id="valorOpacidade">20%</span>
+        </div>
+        <div class="controlo-toggle">
+            <input type="checkbox" id="toggleInput" checked>
+            <label for="toggleInput" class="toggle-switch"></label>
+            <label for="toggleInput">Input</label>
         </div>
     </div>
 
@@ -313,8 +374,7 @@
             const alturasPost = processarVogais(dados.vogaisPosteriores);
             const yOrigemPost = 5 * TAMANHO_CELULA;
 
-            if (curvatura > 0.001) {
-                for (let vogal in alturasAnt) {
+            for (let vogal in alturasAnt) {
                     if (alturasAnt[vogal] > 0) {
                         const x = posicaoColuna[vogal] * TAMANHO_CELULA;
                         const topY = yOrigemAnt - (alturasAnt[vogal] * TAMANHO_CELULA);
@@ -323,7 +383,7 @@
 
                         const mx = (x + bx) / 2;
                         const my = (topY + by) / 2;
-                        const coeff = curvatura * 0.5;
+                        const coeff = (curvatura - 0.5);
                         const distY = Math.abs(by - topY);
                         const distX = TAMANHO_CELULA;
                         const cx = mx + coeff * (distY * 0.5 + distX);
@@ -343,7 +403,7 @@
 
                         const mx = (x + bx) / 2;
                         const my = (bottomY + by) / 2;
-                        const coeff = curvatura * 0.5;
+                        const coeff = (curvatura - 0.5);
                         const distY = Math.abs(by - bottomY);
                         const distX = TAMANHO_CELULA;
                         const cx = mx + coeff * (distY * 0.5 + distX);
@@ -353,7 +413,6 @@
                         svg.appendChild(criarElementoSVG('path', { d: d, class: 'rampa-vogal' }));
                     }
                 }
-            }
 
             for (let i = 0; i < dados.consoante; i++) {
                 svg.appendChild(criarElementoSVG('rect', {
@@ -439,6 +498,16 @@
         });
 
         document.getElementById('sliderCurvatura').addEventListener('input', atualizarTexto);
+
+        document.getElementById('sliderOpacidade').addEventListener('input', function() {
+            const val = parseInt(this.value) / 100;
+            raiz.style.setProperty('--opacidade-rampa', val);
+            document.getElementById('valorOpacidade').textContent = this.value + '%';
+        });
+
+        document.getElementById('toggleInput').addEventListener('change', function() {
+            inputTexto.style.display = this.checked ? '' : 'none';
+        });
     </script>
 </body>
 </html>
