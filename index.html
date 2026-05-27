@@ -203,6 +203,42 @@
             font-size: 0.8rem;
             color: #888;
         }
+
+        .select-export {
+            padding: 6px 10px;
+            background: #333;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .select-export:focus {
+            border-color: #2196F3;
+        }
+
+        .btn-export {
+            padding: 6px 16px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: background 0.2s;
+        }
+
+        .btn-export:hover {
+            background: #1976D2;
+        }
+
+        .btn-export:active {
+            background: #1565C0;
+        }
     </style>
 </head>
 <body>
@@ -251,11 +287,25 @@
             <label for="toggleLegenda" class="toggle-switch"></label>
             <label for="toggleLegenda">Legendas</label>
         </div>
+        <div class="controlo-toggle">
+            <input type="checkbox" id="toggleFundoTransparente">
+            <label for="toggleFundoTransparente" class="toggle-switch"></label>
+            <label for="toggleFundoTransparente">Fundo Transparente</label>
+        </div>
+        <select id="formatoExportacao" class="select-export" title="Formato de exportação">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="svg">SVG</option>
+            <option value="webp">WEBP</option>
+        </select>
+        <button id="btnExportar" class="btn-export" title="Exportar blocos como imagem">Exportar</button>
     </div>
 
     <input type="text" id="inputTexto" placeholder="Ex: Gato 123 Uva" autocomplete="off">
     
     <div id="containerTexto"></div>
+
+    <canvas id="canvasExportacao" style="display:none;"></canvas>
 
     <script>
         const containerTexto = document.getElementById('containerTexto');
@@ -600,6 +650,145 @@
                 el.style.display = this.checked ? '' : 'none';
             });
         });
+
+        function obterEstilosComputados() {
+            const estilo = getComputedStyle(document.documentElement);
+            return {
+                corFundoCelula: estilo.getPropertyValue('--cor-fundo-celula').trim(),
+                corLinhaVogal: estilo.getPropertyValue('--cor-linha-vogal').trim(),
+                corConsoante: estilo.getPropertyValue('--cor-consoante').trim(),
+                corGrelha: estilo.getPropertyValue('--cor-grelha').trim(),
+                opacidadeRampa: estilo.getPropertyValue('--opacidade-rampa').trim(),
+                raioBorda: estilo.getPropertyValue('--raio-borda').trim()
+            };
+        }
+
+        function svgParaStringComEstilos(svgEl, estilos) {
+            const clone = svgEl.cloneNode(true);
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+            style.textContent =
+                `.linha-grelha { stroke: ${estilos.corGrelha}; stroke-width: 1; }\n` +
+                `.bloco-consoante { fill: ${estilos.corConsoante}; }\n` +
+                `.linha-vogal { stroke: ${estilos.corLinhaVogal}; stroke-width: 2; stroke-linecap: butt; }\n` +
+                `.rampa-vogal { fill: ${estilos.corLinhaVogal}; opacity: ${estilos.opacidadeRampa}; stroke: none; }`;
+            clone.insertBefore(style, clone.firstChild);
+            clone.setAttribute('style', `background-color: ${estilos.corFundoCelula};`);
+            if (estilos.raioBorda !== '0px') {
+                clone.setAttribute('rx', estilos.raioBorda);
+                clone.setAttribute('ry', estilos.raioBorda);
+            }
+            return new XMLSerializer().serializeToString(clone);
+        }
+
+        function criarSpritesheet(svgs, callback) {
+            const estilos = obterEstilosComputados();
+            const gap = 15;
+            const raio = parseInt(estilos.raioBorda) || 0;
+
+            const svgEls = [];
+            const promises = [];
+
+            for (const svg of svgs) {
+                promises.push(new Promise((resolve) => {
+                    const str = svgParaStringComEstilos(svg, estilos);
+                    const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const img = new Image();
+                    img.onload = () => {
+                        svgEls.push({
+                            img: img,
+                            w: LARGURA_SVG + raio * 2,
+                            h: ALTURA_SVG + raio * 2
+                        });
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    };
+                    img.src = url;
+                }));
+            }
+
+            Promise.all(promises).then(() => {
+                const cols = Math.min(svgEls.length, 8);
+                const rows = Math.ceil(svgEls.length / cols);
+                const cellW = LARGURA_SVG + raio * 2;
+                const cellH = ALTURA_SVG + raio * 2;
+                const totalW = cols * cellW + (cols - 1) * gap + gap * 2;
+                const totalH = rows * cellH + (rows - 1) * gap + gap * 2;
+
+                const canvas = document.getElementById('canvasExportacao');
+                canvas.width = totalW;
+                canvas.height = totalH;
+                const ctx = canvas.getContext('2d');
+                const fundoTransparente = document.getElementById('toggleFundoTransparente').checked;
+                if (!fundoTransparente) {
+                    ctx.fillStyle = '#1e1e1e';
+                    ctx.fillRect(0, 0, totalW, totalH);
+                }
+
+                svgEls.forEach((item, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    const x = gap + col * (cellW + gap);
+                    const y = gap + row * (cellH + gap);
+                    ctx.drawImage(item.img, x, y, cellW, cellH);
+                });
+
+                callback(canvas);
+            });
+        }
+
+        function nomeBaseFicheiro() {
+            const raw = inputTexto.value.trim().replace(/\s+/g, '_');
+            return raw.length > 0 ? raw : 'blocos-visuais';
+        }
+
+        document.getElementById('btnExportar').addEventListener('click', function() {
+            const formato = document.getElementById('formatoExportacao').value;
+            const svgs = containerTexto.querySelectorAll('svg');
+
+            if (svgs.length === 0) return;
+
+            const nomeBase = nomeBaseFicheiro();
+
+            if (formato === 'svg') {
+                exportarSVG(svgs, nomeBase);
+            } else {
+                criarSpritesheet(svgs, function(canvas) {
+                    const mime = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' }[formato];
+                    const qualidade = (formato === 'jpeg' || formato === 'webp') ? 0.95 : undefined;
+
+                    canvas.toBlob(function(blob) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = nomeBase + '.' + formato;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }, mime, qualidade);
+                });
+            }
+        });
+
+        function exportarSVG(svgs, nomeBase) {
+            const estilos = obterEstilosComputados();
+            let partes = [];
+            svgs.forEach((svg, i) => {
+                partes.push(svgParaStringComEstilos(svg, estilos));
+            });
+
+            const downloadPartes = (idx) => {
+                if (idx >= partes.length) return;
+                const blob = new Blob([partes[idx]], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = svgs.length === 1 ? nomeBase + '.svg' : nomeBase + '_' + (idx + 1) + '.svg';
+                a.click();
+                URL.revokeObjectURL(url);
+                setTimeout(() => downloadPartes(idx + 1), 100);
+            };
+            downloadPartes(0);
+        }
     </script>
 </body>
 </html>
